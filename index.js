@@ -90,7 +90,9 @@ document.addEventListener('DOMContentLoaded', () => {
             "esri/geometry/Point",
             "esri/layers/GraphicsLayer",
             "esri/Graphic",
-            "esri/symbols/SimpleFillSymbol"
+            "esri/symbols/SimpleFillSymbol",
+            "esri/layers/FeatureLayer",
+            "esri/symbols/PictureMarkerSymbol",
         ], function (
             esriConfig,
             Map,
@@ -102,11 +104,53 @@ document.addEventListener('DOMContentLoaded', () => {
             Point,
             GraphicsLayer,
             Graphic,
-            SimpleFillSymbol
+            SimpleFillSymbol,
+            FeatureLayer,
+            PictureMarkerSymbol,
         ) {
+
+            const graphics = [
+                new Graphic({
+                    geometry: new Point({
+                        latitude: 54.7,
+                        longitude: 56,
+                    }),
+                    attributes: {
+                        OBJECTID: 1,
+                    }
+                }),
+                new Graphic({
+                    geometry: new Point({
+                        latitude: 54.8,
+                        longitude: 56,
+                    }),
+                    attributes: {
+                        OBJECTID: 2,
+                    }
+                }),
+            ];
+            const peoplesLayer = new FeatureLayer({
+                source: graphics,  // array of graphics objects
+                objectIdField: "OBJECTID",
+                fields: [{
+                    name: "OBJECTID",
+                    type: "oid"
+                }],
+                renderer: {  // overrides the layer's default renderer
+                    type: "simple",
+                    symbol: new PictureMarkerSymbol({
+                        url: 'human.png',
+                        width: '20px',
+                        height: '20px',
+                    })
+                }
+            });
+
             const map = new Map({
                 basemap: "osm"
             });
+
+            map.add(peoplesLayer);
 
             const view = new MapView({
                 map: map,
@@ -121,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const popupTemplate = document.getElementById('modal-form-template');
             const popupContent = popupTemplate.innerHTML;
 
-            function showZones(lat, lon, rads) {
+            async function showZones(lat, lon, rads) {
                 graphicLayer.removeAll();
                 const circles = rads.map((rad) => {
                     return new Circle({
@@ -142,9 +186,56 @@ document.addEventListener('DOMContentLoaded', () => {
                     [255, 255, 0, 0.5],
                     [100, 200, 0, 0.4],
                 ];
+                const zonesLabels = [
+                    'Зона 1',
+                    'Зона 2',
+                    'Зона 3',
+                    'Зона 4',
+                    'Зона 5',
+                ];
+                const peoplesInZone = [];
+                for (let i = 0; i < 5; i++) {
+                    var query = peoplesLayer.createQuery();
+                    query.geometry = new Point({
+                        latitude: lat,
+                        longitude: lon
+                    });  // the point location of the pointer
+                    query.distance = rads[i];
+                    query.units = "meters";
+                    query.spatialRelationship = "intersects";  // this is the default
+                    query.returnGeometry = true;
+                    const response = await peoplesLayer.queryFeatures(query);
+                    let count = response.features.length;
+                    console.log(i, count);
+                    for (let j = 0; j < i; j++) {
+                        count -= peoplesInZone[j];
+                    }
+                    peoplesInZone[i] = count;
+                }
+
+                console.log(peoplesInZone);
                 const graphics = circles.map((circle, i) => {
                     return new Graphic({
                         geometry: circle,
+                        attributes: {
+                            label: zonesLabels[i],
+                            people: peoplesInZone[i],
+                            // OBJECTID: i,
+                        },
+                        popupTemplate: {
+                            title: "{label}",
+                            content: [{
+                                // Pass in the fields to display
+                                type: "fields",
+                                fieldInfos: [{
+                                    fieldName: "label",
+                                    label: "Зона"
+                                }, {
+                                    fieldName: "people",
+                                    label: "Пострадавших людей"
+                                }]
+                            }]
+                        },
                         symbol: new SimpleFillSymbol({
                             color: colors[i],
                             style: "solid",
@@ -190,19 +281,34 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             view.on('click', (event) => {
-                view.popup.autoOpenEnabled = false;
+                // Search for graphics at the clicked location
+                view.hitTest(event).then(function (response) {
+                    if (response.results.length) {
+                        const circleClicked = response.results.some(function (result) {
+                            // check if the graphic belongs to the layer of interest
+                            return result.graphic.layer === graphicLayer;
+                        });
+                        // do something with the result graphic
+                        if (circleClicked) {
+                            view.popup.autoOpenEnabled = true;
+                            return;
+                        }
+                    }
+                    view.popup.autoOpenEnabled = false;
 
-                // Get the coordinates of the click on the view
-                const lat = event.mapPoint.latitude;
-                const lon = event.mapPoint.longitude;
+                    // Get the coordinates of the click on the view
+                    const lat = event.mapPoint.latitude;
+                    const lon = event.mapPoint.longitude;
 
-                view.popup.open({
-                    // Set the popup's title to the coordinates of the location
-                    title: "Координаты " + lon + ", " + lat + "",
-                    location: event.mapPoint, // Set the location of the popup to the clicked location
-                    content: setContentInfo(lat, lon)
+                    view.popup.open({
+                        // Set the popup's title to the coordinates of the location
+                        title: "Координаты " + lon + ", " + lat + "",
+                        location: event.mapPoint, // Set the location of the popup to the clicked location
+                        content: setContentInfo(lat, lon)
+                    });
                 });
             });
-
-        });
-});
+        })
+    ;
+})
+;
