@@ -32,26 +32,19 @@ document.addEventListener('DOMContentLoaded', () => {
             Editor
         ) {
 
-            const graphics = [
-                new Graphic({
-                    geometry: new Point({
-                        latitude: 54.7,
-                        longitude: 56,
-                    }),
-                    attributes: {
-                        OBJECTID: 1,
-                    }
-                }),
-                new Graphic({
-                    geometry: new Point({
-                        latitude: 54.8,
-                        longitude: 56,
-                    }),
-                    attributes: {
-                        OBJECTID: 2,
-                    }
-                }),
-            ];
+            const coords = [{"latitude": 54.7, "longitude": 56}, {
+                "latitude": 54.8,
+                "longitude": 56
+            }, {"latitude": 54.7370192864625, "longitude": 55.985752105711974}, {
+                "latitude": 54.747126765464465,
+                "longitude": 56.00720977783108
+            }, {"latitude": 54.743163348817376, "longitude": 55.98952865600493}];
+            const graphics = coords.map((coord, i) => new Graphic({
+                geometry: new Point(coord),
+                attributes: {
+                    OBJECTID: i,
+                }
+            }));
 
             const peoplesLayer = new FeatureLayer({
                 source: graphics,  // array of graphics objects
